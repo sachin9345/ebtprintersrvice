@@ -49,12 +49,13 @@
       "allowToChangeInstallationDirectory": false
     },
     "publish": [
-      {
-        "provider": "github",
-        "owner": "YOUR_GITHUB_ORG",
-        "repo": "ebt-printer-service",
-        "private": true
-      }
-    ]
+  {
+    "provider": "github",
+    "owner": "sachin9345",
+    "repo": "ebtprintersrvice",
+    "releaseType": "release"
+  }
+]
+
   }
 }
