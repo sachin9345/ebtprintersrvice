@@ -1,6 +1,6 @@
 {
   "name": "ebt-printer-service",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "EBT POS Thermal Printer Service",
   "main": "electron/main.js",
   "author": "EBT POS",
