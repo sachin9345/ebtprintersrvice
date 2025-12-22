@@ -26,7 +26,7 @@ function createTray() {
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: "🟢 Printer Service Running",
+      label: "🟢 Printer Service is Running",
       enabled: false,
     },
     { type: "separator" },
