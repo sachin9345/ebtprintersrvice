@@ -2,6 +2,7 @@ const { app } = require("electron");
 const path = require("path");
 const { createTray } = require("./tray");
 const { log, logError } = require("../server/utils/logger");
+const { checkUpdates } = require("./updater");
 
 
 const gotLock = app.requestSingleInstanceLock();
@@ -27,7 +28,9 @@ app.whenReady().then(() => {
 });
   createTray();
   log("🖨️ EBT Printer Service started");
-  
+  setTimeout(() => {
+    checkUpdates();
+  }, 5000);
 });
 
 
