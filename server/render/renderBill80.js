@@ -150,7 +150,7 @@ async function renderBill80(printer, bill) {
 
   printLine(printer);
 
-  if (!s.showGstInclusive) {
+  if (s.showGstInclusive) {
     printTotalRow(printer, "Subtotal", Number(bill.subtotal).toFixed(2));
     printTotalRow(printer, "GST", Number(bill.tax).toFixed(2));
   }
