@@ -1,0 +1,60 @@
+{
+  "name": "ebt-printer-service",
+  "version": "1.0.0",
+  "description": "EBT POS Thermal Printer Service",
+  "main": "electron/main.js",
+  "author": "EBT POS",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "electron .",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "axios": "^1.6.8",
+    "canvas": "^3.2.0",
+    "cors": "^2.8.5",
+    "electron-updater": "^6.6.2",
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2",
+    "node-thermal-printer": "^4.5.0"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.ebt.printer",
+    "productName": "EBT Printer Service",
+    "asar": true,
+     "asarUnpack": [
+    "**/assets/**",
+    "**/fonts/**"
+  ],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "server/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "YOUR_GITHUB_ORG",
+        "repo": "ebt-printer-service",
+        "private": true
+      }
+    ]
+  }
+}

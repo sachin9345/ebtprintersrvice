@@ -1,0 +1,59 @@
+KOT
+------------------------------------------------
+Order: 16
+------------------------------------------------
+2 x Biryani chicken
+[IMAGE]
+
+
+---- CUT ----
+
+[IMAGE]
+
+DEMO RESTARAUNT
+Welcome to Demo 2 Restaurant
+26/4D MURUGAN LAYOUT ,KARPURA NAGAR,
+veerapandi piriv
+Ph: 09344461476
+Sabarish_7@protonmail.com
+GSTIN: ECJNKJNI11343r
+
+Order No: 16
+12/22/2025, 3:01:49 PM
+------------------------------------------------
+ITEM                       QTY    PRICE    TOTAL
+------------------------------------------------
+Biryani chicken              2   200.00   400.00
+[IMAGE]
+------------------------------------------------
+Subtotal                                  380.95
+GST                                        19.05
+------------------------------------------------
+GRAND TOTAL                               400.00
+
+Paid via: CASH
+Status: PAID
+
+Thank You! Visit Again.
+
+
+---- CUT ----
+
+TEST PRINT
+Printer connected successfully
+12/22/2025, 3:06:33 PM
+
+---- CUT ----
+
+KOT
+------------------------------------------------
+Order: 17
+Table: TABLE 2
+Seat: TBL-2-A
+------------------------------------------------
+1 x Chicken Shawarma Roll
+[IMAGE]
+
+
+---- CUT ----
+
