@@ -1,8 +1,10 @@
 const path = require("path");
 const fs = require("fs");
 const axios = require("axios");
+const { app } = require("electron");
 const { textToImage } = require("../utils/imageUtils");
 
+/* ================= CONSTANTS ================= */
 
 const LINE_WIDTH = 48;
 
@@ -11,6 +13,20 @@ const COL_QTY = 6;
 const COL_PRICE = 9;
 const COL_TOTAL = 9;
 
+const CACHE_DIR = path.join(app.getPath("userData"), "cache");
+const LOGO_CACHE = path.join(CACHE_DIR, "bill-logo.png");
+
+/* ================= HELPERS ================= */
+
+function ensureCacheDir() {
+  if (!fs.existsSync(CACHE_DIR)) {
+    fs.mkdirSync(CACHE_DIR, { recursive: true });
+  }
+}
+
+function money(v) {
+  return Number(v || 0).toFixed(2);
+}
 
 function padRight(text = "", len) {
   text = String(text);
@@ -39,6 +55,7 @@ function wrapText(text = "", width) {
       line = w;
     }
   }
+
   if (line) lines.push(line);
   return lines;
 }
@@ -57,16 +74,21 @@ function printTotalRow(printer, label, value, bold = false) {
   if (bold) printer.normal();
 }
 
+/* ================= IMAGE HANDLING ================= */
 
+async function downloadLogo(url) {
+  ensureCacheDir();
 
-async function downloadImage(url) {
-  const filePath = path.join(__dirname, "..", "tmp-logo.png");
+  if (fs.existsSync(LOGO_CACHE)) {
+    return LOGO_CACHE;
+  }
+
   const res = await axios.get(url, { responseType: "arraybuffer" });
-  fs.writeFileSync(filePath, res.data);
-  return filePath;
+  fs.writeFileSync(LOGO_CACHE, res.data);
+  return LOGO_CACHE;
 }
 
-
+/* ================= MAIN RENDER ================= */
 
 async function renderBill80(printer, bill) {
   if (!bill || !Array.isArray(bill.items)) {
@@ -78,15 +100,18 @@ async function renderBill80(printer, bill) {
   printer.clear();
   printer.alignCenter();
 
+  /* ===== LOGO ===== */
   if (s.showBillLogo && bill.logoUrl) {
     try {
-      const logoPath = await downloadImage(bill.logoUrl);
+      const logoPath = await downloadLogo(bill.logoUrl);
       await printer.printImage(logoPath);
       printer.newLine();
-    } catch {}
+    } catch (e) {
+      console.warn("⚠️ Logo print failed:", e.message);
+    }
   }
 
-  printer.alignCenter();
+  /* ===== HEADER ===== */
 
   if (s.showHotelName && bill.hotelName) {
     printer.bold();
@@ -99,7 +124,7 @@ async function renderBill80(printer, bill) {
   }
 
   if (s.showAddress && bill.address) {
-    bill.address.split("\n").forEach(line => printer.println(line));
+    bill.address.split("\n").forEach(l => printer.println(l));
   }
 
   if (s.showPhone && bill.phone) printer.println(`Ph: ${bill.phone}`);
@@ -107,12 +132,12 @@ async function renderBill80(printer, bill) {
   if (s.showGstin && bill.gstin) printer.println(`GSTIN: ${bill.gstin}`);
 
   printer.newLine();
-
   printer.println(`Order No: ${bill.orderNo}`);
   printer.println(new Date(bill.date).toLocaleString());
 
-  printLine(printer);
+  /* ===== ITEMS ===== */
 
+  printLine(printer);
   printer.alignLeft();
 
   printer.bold();
@@ -129,12 +154,11 @@ async function renderBill80(printer, bill) {
   for (const i of bill.items) {
     const nameLines = wrapText(i.nameEn || "", COL_ITEM);
 
-    const qty = padLeft(i.qty, COL_QTY);
-    const price = padLeft(Number(i.price).toFixed(2), COL_PRICE);
-    const total = padLeft(Number(i.total).toFixed(2), COL_TOTAL);
-
     printer.println(
-      padRight(nameLines[0], COL_ITEM) + qty + price + total
+      padRight(nameLines[0], COL_ITEM) +
+        padLeft(i.qty || 0, COL_QTY) +
+        padLeft(money(i.price), COL_PRICE) +
+        padLeft(money(i.total), COL_TOTAL)
     );
 
     for (let l = 1; l < nameLines.length; l++) {
@@ -144,41 +168,34 @@ async function renderBill80(printer, bill) {
     if (s.showSecondaryName && i.nameTa) {
       try {
         await printer.printImage(await textToImage(i.nameTa));
-      } catch {}
+      } catch (e) {
+        console.warn("⚠️ Tamil render failed:", e.message);
+      }
     }
   }
+
+  /* ===== TOTALS ===== */
 
   printLine(printer);
 
   if (s.showGstInclusive) {
-    printTotalRow(printer, "Subtotal", Number(bill.subtotal).toFixed(2));
-    printTotalRow(printer, "GST", Number(bill.tax).toFixed(2));
+    printTotalRow(printer, "Subtotal", money(bill.subtotal));
+    printTotalRow(printer, "GST", money(bill.tax));
   }
 
   if (s.showDiscount && bill.discount > 0) {
-    printTotalRow(
-      printer,
-      "Discount",
-      `-${Number(bill.discount).toFixed(2)}`
-    );
+    printTotalRow(printer, "Discount", `-${money(bill.discount)}`);
   }
 
   if (s.showAdditionalCharges && bill.additionalCharges > 0) {
-    printTotalRow(
-      printer,
-      "Other Charges",
-      Number(bill.additionalCharges).toFixed(2)
-    );
+    printTotalRow(printer, "Other Charges", money(bill.additionalCharges));
   }
 
   printLine(printer);
 
-  printTotalRow(
-    printer,
-    "GRAND TOTAL",
-    Number(bill.grandTotal).toFixed(2),
-    true
-  );
+  printTotalRow(printer, "GRAND TOTAL", money(bill.grandTotal), true);
+
+  /* ===== FOOTER ===== */
 
   if (s.showPaymentMode) {
     printer.newLine();
@@ -191,7 +208,7 @@ async function renderBill80(printer, bill) {
 
   if (s.showBillFooter && bill.billFooter) {
     printer.newLine();
-    printer.alignCenter();          
+    printer.alignCenter();
     printer.println(bill.billFooter);
   }
 

@@ -4,22 +4,16 @@ const axios = require("axios");
 
 let tray = null;
 
-
 function getTrayIconPath() {
-  if (app.isPackaged) {
-    return path.join(
-      process.resourcesPath,
-      "app.asar.unpacked",
-      "electron",
-      "assets",
-      "print.ico"
-    );
-  }
+  if (!app.isPackaged) {
     return path.join(__dirname, "assets", "print.ico");
+  }
+
+  return path.join(process.resourcesPath, "assets", "print.ico");
 }
 
 function createTray() {
- const iconPath = getTrayIconPath();
+  const iconPath = getTrayIconPath();
 
   tray = new Tray(iconPath);
   tray.setToolTip("EBT Printer Service");
@@ -36,8 +30,11 @@ function createTray() {
       click: async () => {
         try {
           await axios.post("http://127.0.0.1:9100/print/test");
-        } catch {
-          shell.showErrorBox("Printer Error", "Printer service not reachable");
+        } catch (e) {
+          shell.showErrorBox(
+            "Printer Error",
+            "Printer service not reachable"
+          );
         }
       },
     },
@@ -64,7 +61,7 @@ function createTray() {
     {
       label: "❌ Exit",
       click: () => {
-        app.quit();
+        app.exit(0);
       },
     },
   ]);

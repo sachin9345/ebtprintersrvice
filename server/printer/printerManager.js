@@ -1,12 +1,16 @@
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
-
+const { app } = require("electron");
 let printer = null;
 let testMode = false;
 
-const CONFIG_PATH = path.join(__dirname, "..", "config.json");
+const { CONFIG_PATH, ensureConfig } = require("../utils/config");
+const isDev = !app.isPackaged;
 
+
+
+ensureConfig();
 
 const EXCLUDE_KEYWORDS = [
   "pdf",
@@ -35,11 +39,17 @@ const THERMAL_KEYWORDS = [
 
 
 
+let cachedConfig = null;
+
 function loadConfig() {
-  return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+  if (!cachedConfig) {
+    cachedConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+  }
+  return cachedConfig;
 }
 
 function saveConfig(config) {
+  cachedConfig = config;
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
 }
 
@@ -48,9 +58,13 @@ function saveConfig(config) {
 function initPrinter(printerName, paperSize = "80MM") {
   if (!printerName) return;
 
-  if (printerName === "__TEST__") {
-    testMode = true;
-    console.log("🧪 TEST MODE ENABLED");
+ if (printerName === "__TEST__") {
+    if (isDev) {
+      testMode = true;
+      console.log("🧪 TEST MODE ENABLED (DEV ONLY)");
+    } else {
+      console.warn("⚠️ TEST MODE IGNORED IN PRODUCTION");
+    }
     return;
   }
 
@@ -59,7 +73,7 @@ function initPrinter(printerName, paperSize = "80MM") {
 
   printer = new ThermalPrinter({
     type: PrinterTypes.EPSON,
-    interface: `printer:${printerName}`,
+    interface: `printer:${printerName}` || `\\spool\\${printerName}`,
     width: paperSize === "80MM" ? 48 : 32,
     removeSpecialCharacters: false,
   });
@@ -76,9 +90,10 @@ function initPrinter(printerName, paperSize = "80MM") {
 function listPrinters() {
   try {
     const output = execSync(
-      "wmic printer get name",
-      { encoding: "utf-8" }
-    );
+  `powershell -Command "Get-Printer | Select-Object -ExpandProperty Name"`,
+  { encoding: "utf-8" }
+);
+
 
     const printers = output
       .split("\n")
@@ -124,8 +139,7 @@ function selectPrinter(printerName) {
 
   config.printerName = printerName;
   saveConfig(config);
-
-  testMode = false;
+ 
   printer = null;
 
   initPrinter(config.printerName, config.paperSize);
@@ -157,20 +171,18 @@ async function testPrint() {
 
 
 function getPrinter() {
-  if (testMode) {
-    const outFile = path.join(__dirname, "..", "test-print.txt");
-
+  if (testMode && isDev) {
     return {
       clear: () => {},
       alignCenter: () => {},
       alignLeft: () => {},
       bold: () => {},
       normal: () => {},
-      println: (t = "") => fs.appendFileSync(outFile, t + "\n"),
-      newLine: () => fs.appendFileSync(outFile, "\n"),
-      drawLine: () => fs.appendFileSync(outFile, "-".repeat(48) + "\n"),
-      printImage: () => fs.appendFileSync(outFile, "[IMAGE]\n"),
-      cut: () => fs.appendFileSync(outFile, "\n---- CUT ----\n\n"),
+      println: (t = "") => console.log("[PRINT]", t),
+      newLine: () => console.log(""),
+      drawLine: () => console.log("-".repeat(48)),
+      printImage: () => console.log("[IMAGE]"),
+      cut: () => console.log("---- CUT ----"),
       execute: async () => true,
     };
   }
@@ -178,6 +190,7 @@ function getPrinter() {
   if (!printer) throw new Error("Printer not initialized");
   return printer;
 }
+
 
 
 module.exports = {

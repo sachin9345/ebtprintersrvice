@@ -1,14 +1,16 @@
 {
   "name": "ebt-printer-service",
-  "version": "1.0.1",
+  "version": "1.0.4",
   "description": "EBT POS Thermal Printer Service",
   "main": "electron/main.js",
   "author": "EBT POS",
   "license": "UNLICENSED",
+
   "scripts": {
     "dev": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder --publish=always"
   },
+
   "dependencies": {
     "axios": "^1.6.8",
     "canvas": "^3.2.0",
@@ -18,44 +20,57 @@
     "node-fetch": "^3.3.2",
     "node-thermal-printer": "^4.5.0"
   },
+
   "devDependencies": {
     "electron": "^30.0.0",
     "electron-builder": "^24.13.3"
   },
+
   "build": {
     "appId": "com.ebt.printer",
     "productName": "EBT Printer Service",
     "asar": true,
-     "asarUnpack": [
-    "**/assets/**",
-    "**/fonts/**"
-  ],
+
+    "extraResources": [
+      {
+        "from": "electron/assets",
+        "to": "assets"
+      },
+      {
+        "from": "server/fonts",
+        "to": "fonts"
+      }
+    ],
+
     "directories": {
       "output": "dist"
     },
+
     "files": [
       "electron/**/*",
       "server/**/*",
       "package.json"
     ],
+
     "win": {
       "target": "nsis",
       "signAndEditExecutable": false
     },
+
     "nsis": {
       "oneClick": false,
       "perMachine": true,
       "allowElevation": true,
       "allowToChangeInstallationDirectory": false
     },
-    "publish": [
-  {
-    "provider": "github",
-    "owner": "sachin9345",
-    "repo": "ebtprintersrvice",
-    "releaseType": "release"
-  }
-]
 
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "sachin9345",
+        "repo": "ebtprintersrvice",
+        "releaseType": "release"
+      }
+    ]
   }
 }
