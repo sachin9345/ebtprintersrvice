@@ -3,6 +3,7 @@ const fs = require("fs");
 const axios = require("axios");
 const { app } = require("electron");
 const { textToImage } = require("../utils/imageUtils");
+const { saveBufferAsImage } = require("../utils/saveTempImage");
 
 /* ================= CONSTANTS ================= */
 
@@ -64,13 +65,24 @@ function printLine(printer) {
   printer.println("-".repeat(LINE_WIDTH));
 }
 
-function printTotalRow(printer, label, value, bold = false) {
-  const labelWidth = COL_ITEM + COL_QTY + COL_PRICE;
-  const left = padRight(label, labelWidth);
-  const right = padLeft(value, COL_TOTAL);
-
+/**
+ * Right-align full line (label + value together)
+ * Works on ESC/POS & GDI
+ */
+function printRightAligned(printer, text, bold = false, big = false) {
   if (bold) printer.bold();
-  printer.println(left + right);
+
+  if (big && printer.setTextDoubleHeight) {
+    printer.setTextDoubleHeight();
+    printer.setTextDoubleWidth();
+  }
+
+  printer.println(padLeft(text, LINE_WIDTH));
+
+  if (big && printer.setTextNormal) {
+    printer.setTextNormal();
+  }
+
   if (bold) printer.normal();
 }
 
@@ -131,14 +143,15 @@ async function renderBill80(printer, bill) {
   if (s.showMail && bill.email) printer.println(bill.email);
   if (s.showGstin && bill.gstin) printer.println(`GSTIN: ${bill.gstin}`);
 
-  printer.newLine();
+  printLine(printer);
+
+  printer.alignLeft();
   printer.println(`Order No: ${bill.orderNo}`);
   printer.println(new Date(bill.date).toLocaleString());
 
   /* ===== ITEMS ===== */
 
   printLine(printer);
-  printer.alignLeft();
 
   printer.bold();
   printer.println(
@@ -167,33 +180,48 @@ async function renderBill80(printer, bill) {
 
     if (s.showSecondaryName && i.nameTa) {
       try {
-        await printer.printImage(await textToImage(i.nameTa));
+        const buffer = await textToImage(i.nameTa);
+        if (buffer) {
+          const imgPath = saveBufferAsImage(buffer, "ta");
+          await printer.printImage(imgPath);
+        }
       } catch (e) {
         console.warn("⚠️ Tamil render failed:", e.message);
       }
     }
   }
 
-  /* ===== TOTALS ===== */
+  /* ===== TOTALS (RIGHT ALIGNED) ===== */
 
   printLine(printer);
 
   if (s.showGstInclusive) {
-    printTotalRow(printer, "Subtotal", money(bill.subtotal));
-    printTotalRow(printer, "GST", money(bill.tax));
+    printRightAligned(printer, `Subtotal: ${money(bill.subtotal)}`);
+    printRightAligned(printer, `GST: ${money(bill.tax)}`);
   }
 
   if (s.showDiscount && bill.discount > 0) {
-    printTotalRow(printer, "Discount", `-${money(bill.discount)}`);
+    printRightAligned(
+      printer,
+      `Discount -${money(bill.discount)}`
+    );
   }
 
   if (s.showAdditionalCharges && bill.additionalCharges > 0) {
-    printTotalRow(printer, "Other Charges", money(bill.additionalCharges));
+    printRightAligned(
+      printer,
+      `Other Charges ${money(bill.additionalCharges)}`
+    );
   }
 
   printLine(printer);
 
-  printTotalRow(printer, "GRAND TOTAL", money(bill.grandTotal), true);
+  printRightAligned(
+    printer,
+    `GRAND TOTAL ${money(bill.grandTotal)}`,
+    true,  // bold
+    true   // double size (ESC/POS)
+  );
 
   /* ===== FOOTER ===== */
 

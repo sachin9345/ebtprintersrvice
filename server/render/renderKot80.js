@@ -1,5 +1,5 @@
 const { textToImage } = require("../utils/imageUtils");
-
+const { saveBufferAsImage } = require("../utils/saveTempImage");
 
 async function renderKot80(printer, kot) {
   if (!kot || !Array.isArray(kot.items)) {
@@ -30,7 +30,11 @@ async function renderKot80(printer, kot) {
 
     if (i.nameTa) {
       try {
-        await printer.printImage(await textToImage(i.nameTa));
+        const buffer = await textToImage(i.nameTa);
+        if (buffer) {
+          const imgPath = saveBufferAsImage(buffer, "ta");
+          await printer.printImage(imgPath);
+        }
       } catch (e) {
         console.warn("⚠️ Tamil KOT render failed:", e.message);
       }
