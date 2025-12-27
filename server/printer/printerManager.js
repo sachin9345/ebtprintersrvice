@@ -1,35 +1,26 @@
+/**
+ * FINAL PRODUCTION PRINTER MANAGER
+ * Works with:
+ * - USB
+ * - Direct LAN (PC ↔ Printer)
+ * - LAN via Router
+ * - Wi-Fi
+ */
+
 const fs = require("fs");
+const os = require("os");
+const net = require("net");
 const { execSync } = require("child_process");
 const { app, BrowserWindow } = require("electron");
 
 let printer = null;
-let testMode = false;
-let printMode = "NONE"; // ESC_POS | GDI | TEST
+let printMode = "NONE"; // ESC_POS | GDI
 
 const { CONFIG_PATH, ensureConfig } = require("../utils/config");
-const isDev = !app.isPackaged;
-
 ensureConfig();
 
 /* =============================
-   CONSTANTS
-============================= */
-
-const EXCLUDE_KEYWORDS = [
-  "pdf", "xps", "onenote", "fax", "microsoft", "send to", "anydesk"
-];
-
-// USB spooler printers unreliable with ESC/POS on Windows
-const FORCE_GDI_KEYWORDS = [
-  "citizen",
-  "ct-d",
-  "tvs",
-  "rp",
-  "star"
-];
-
-/* =============================
-   CONFIG CACHE
+   CONFIG
 ============================= */
 
 let cachedConfig = null;
@@ -41,111 +32,88 @@ function loadConfig() {
   return cachedConfig;
 }
 
-function saveConfig(config) {
-  cachedConfig = config;
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+function saveConfig(cfg) {
+  cachedConfig = cfg;
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+}
+
+/* =============================
+   ESC/POS INIT
+============================= */
+
+function initEscPos(iface, paperSize) {
+  const { printer: ThermalPrinter, types } =
+    require("node-thermal-printer");
+
+  printer = new ThermalPrinter({
+    type: types.EPSON,
+    interface: iface,
+    width: paperSize === "80MM" ? 48 : 32,
+    options: { timeout: 5000 },
+  });
+
+  printer.normal = () => printer.bold(false);
+}
+
+/* =============================
+   PROBE ESC/POS
+============================= */
+
+async function probeEscPos(p) {
+  try {
+    p.clear();
+    p.println("TEST");
+    p.cut();
+    await p.execute();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /* =============================
    INIT PRINTER
 ============================= */
 
-function initPrinter(printerName, paperSize = "80MM") {
+async function initPrinter(printerId, paperSize = "80MM") {
   printer = null;
-  testMode = false;
   printMode = "NONE";
 
-  if (!printerName) return;
+  if (!printerId) return;
 
-  /* ---------- TEST MODE ---------- */
-  if (printerName === "__TEST__") {
-    if (!isDev) {
-      console.warn("⚠️ TEST MODE IGNORED IN PRODUCTION");
-      return;
-    }
-    testMode = true;
-    printMode = "TEST";
-    console.log("🧪 TEST MODE ENABLED (DEV ONLY)");
+  // NETWORK PRINTER (LAN / WiFi / Direct Cable)
+  if (printerId.startsWith("tcp://")) {
+    initEscPos(printerId, paperSize);
+    printMode = "ESC_POS";
     return;
   }
 
-  const lower = printerName.toLowerCase();
-  const isTcp = printerName.startsWith("tcp://");
-
-  /* ---------- FORCE GDI FOR USB ---------- */
-  if (!isTcp && FORCE_GDI_KEYWORDS.some(k => lower.includes(k))) {
-    printMode = "GDI";
-    console.log("🧷 Using GDI mode for USB printer:", printerName);
-    return;
-  }
-
-  /* ---------- TRY ESC/POS ---------- */
+  // WINDOWS PRINTER (USB / Bluetooth)
   try {
-    const { printer: ThermalPrinter, types: PrinterTypes } =
-      require("node-thermal-printer");
-
-    const iface = isTcp
-      ? printerName
-      : `printer:${printerName}`;
-
-  const p = new ThermalPrinter({
-  type: PrinterTypes.EPSON,
-  interface: iface,
-  width: paperSize === "80MM" ? 48 : 32,
-  removeSpecialCharacters: false,
-  options: { timeout: 5000 },
-});
-
-// ✅ Normalize API
-if (typeof p.bold === "function") {
-  p.normal = () => p.bold(false);
-} else {
-  p.bold = () => {};
-  p.normal = () => {};
-}
-
-printer = p;
-printMode = "ESC_POS";
-console.log("🖨️ ESC/POS mode active:", printerName);
-
-    return;
-
-  } catch (err) {
-    console.warn("⚠️ ESC/POS init failed, falling back to GDI:", err.message);
+    initEscPos(`printer:${printerId}`, paperSize);
+    const ok = await probeEscPos(printer);
+    if (!ok) throw new Error();
+    printMode = "ESC_POS";
+  } catch {
+    printer = null;
     printMode = "GDI";
   }
 }
 
 /* =============================
-   GDI PRINT (Windows Spooler)
+   GDI PRINT
 ============================= */
 
 function gdiPrint(html) {
   const { printerName } = loadConfig();
-  if (!printerName) return Promise.reject("No printer selected");
 
   return new Promise((resolve, reject) => {
     const win = new BrowserWindow({ show: false });
-
-    const timeout = setTimeout(() => {
-      win.destroy();
-      reject("GDI print timeout");
-    }, 15000);
-
     win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-
     win.webContents.on("did-finish-load", () => {
       win.webContents.print(
-        {
-          silent: true,
-          printBackground: true,
-          deviceName: printerName,
-        },
-        success => {
-          clearTimeout(timeout);
-          win.destroy();
-          success ? resolve() : reject("GDI print failed");
-        }
+        { silent: true, deviceName: printerName },
+        ok => (ok ? resolve() : reject())
       );
     });
   });
@@ -156,108 +124,119 @@ function gdiPrint(html) {
 ============================= */
 
 function getPrinter() {
-  /* ---------- TEST MODE ---------- */
-  if (testMode && isDev) {
-    return {
-      clear: () => {},
-      alignCenter: () => {},
-      alignLeft: () => {},
-      bold: () => {},
-      normal: () => {},
-      println: t => console.log("[PRINT]", t),
-      newLine: () => console.log(""),
-      drawLine: () => console.log("-".repeat(48)),
-      printImage: () => console.log("[IMAGE]"),
-      cut: () => console.log("---- CUT ----"),
-      execute: async () => true,
-    };
-  }
+  if (printMode === "ESC_POS") return printer;
 
-  /* ---------- ESC/POS ---------- */
-  if (printMode === "ESC_POS") {
-    if (!printer) throw new Error("ESC/POS printer not initialized");
-    return printer;
-  }
-
-  /* ---------- GDI ---------- */
   if (printMode === "GDI") {
     let buffer = "";
-
     return {
       clear: () => (buffer = ""),
-      alignCenter: () => (buffer += `<div style="text-align:center">`),
-      alignLeft: () => (buffer += `</div><div style="text-align:left">`),
-      bold: () => (buffer += "<b>"),
-      normal: () => (buffer += "</b>"),
-      println: t => (buffer += `${t || ""}<br/>`),
-      newLine: () => (buffer += "<br/>"),
-      drawLine: () => (buffer += `${"-".repeat(48)}<br/>`),
-      printImage: () => (buffer += "[IMAGE]<br/>"),
-      cut: () => (buffer += "<hr/>"),
+      println: t => (buffer += `${t}<br/>`),
+      cut: () => {},
       execute: async () => {
-        const html = `
-          <html>
-            <body style="font-family: monospace; font-size: 12px">
-              ${buffer}
-            </body>
-          </html>`;
+        await gdiPrint(`<body>${buffer}</body>`);
         buffer = "";
-        await gdiPrint(html);
       },
     };
   }
 
-  throw new Error("Printer not initialized");
+  throw new Error("Printer not ready");
 }
 
 /* =============================
-   PRINTER DISCOVERY
+   DISCOVER USB PRINTERS
 ============================= */
 
-function listPrinters() {
+function listUsbPrinters() {
   try {
-    const output = execSync(
+    const out = execSync(
       `powershell -Command "Get-Printer | Select-Object -ExpandProperty Name"`,
       { encoding: "utf-8" }
     );
 
-    return output
+    return out
       .split("\n")
       .map(p => p.trim())
-      .filter(
-        p =>
-          p &&
-          !EXCLUDE_KEYWORDS.some(k =>
-            p.toLowerCase().includes(k)
-          )
-      );
-  } catch (e) {
-    console.error("❌ Failed to detect printers", e);
+      .filter(Boolean)
+      .map(name => ({
+        id: name,
+        name,
+        type: "USB",
+      }));
+  } catch {
     return [];
   }
 }
 
 /* =============================
-   SELECT PRINTER
+   DISCOVER NETWORK PRINTERS
 ============================= */
 
-function selectPrinter(printerName) {
-  const config = loadConfig();
-  config.printerName = printerName;
-  saveConfig(config);
+function getSubnet() {
+  const nets = os.networkInterfaces();
+  for (const list of Object.values(nets)) {
+    for (const i of list) {
+      if (i.family === "IPv4" && !i.internal) {
+        const p = i.address.split(".");
+        return `${p[0]}.${p[1]}.${p[2]}.`;
+      }
+    }
+  }
+  return null;
+}
 
-  initPrinter(config.printerName, config.paperSize);
+async function listNetworkPrinters() {
+  const subnet = getSubnet();
+  if (!subnet) return [];
 
-  return {
-    success: true,
-    printerName,
-    mode: printMode,
-  };
+  const found = [];
+  const jobs = [];
+
+  for (let i = 1; i <= 254; i++) {
+    const ip = subnet + i;
+    jobs.push(
+      new Promise(resolve => {
+        const s = new net.Socket();
+        s.setTimeout(250);
+        s.connect(9100, ip, () => {
+          found.push({
+            id: `tcp://${ip}:9100`,
+            name: `Network Printer (${ip})`,
+            type: "NETWORK",
+          });
+          s.destroy();
+          resolve();
+        });
+        s.on("error", () => resolve());
+        s.on("timeout", () => {
+          s.destroy();
+          resolve();
+        });
+      })
+    );
+  }
+
+  await Promise.all(jobs);
+  return found;
 }
 
 /* =============================
-   EXPORTS
+   PUBLIC API
 ============================= */
+
+async function listPrinters() {
+  return {
+    usb: listUsbPrinters(),
+    network: await listNetworkPrinters(),
+  };
+}
+
+async function selectPrinter(printerName) {
+  const cfg = loadConfig();
+  cfg.printerName = printerName;
+  saveConfig(cfg);
+  await initPrinter(printerName, cfg.paperSize);
+  return { success: true, mode: printMode };
+}
 
 module.exports = {
   initPrinter,
