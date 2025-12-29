@@ -99,6 +99,17 @@ async function downloadLogo(url) {
   fs.writeFileSync(LOGO_CACHE, res.data);
   return LOGO_CACHE;
 }
+function textBig(printer) {
+  if (printer.setTextSize) {
+    printer.setTextSize(1, 2); // normal width, double height
+  }
+}
+
+function textNormal(printer) {
+  if (printer.setTextSize) {
+    printer.setTextSize(1, 1);
+  }
+}
 
 /* ================= MAIN RENDER ================= */
 
@@ -164,20 +175,40 @@ async function renderBill80(printer, bill) {
 
   printLine(printer);
 
-  for (const i of bill.items) {
-    const nameLines = wrapText(i.nameEn || "", COL_ITEM);
+for (const i of bill.items) {
+  const nameLines = wrapText(i.nameEn || "", COL_ITEM);
 
-    printer.println(
-      padRight(nameLines[0], COL_ITEM) +
-        padLeft(i.qty || 0, COL_QTY) +
-        padLeft(money(i.price), COL_PRICE) +
-        padLeft(money(i.total), COL_TOTAL)
-    );
+  /* ---- ITEM NAME (BIG) ---- */
+  printer.bold();
+  textBig(printer);
 
-    for (let l = 1; l < nameLines.length; l++) {
-      printer.println(padRight(nameLines[l], COL_ITEM));
+  printer.println(
+    padRight(nameLines[0], COL_ITEM) +
+      padLeft(i.qty || 0, COL_QTY) +
+      padLeft(money(i.price), COL_PRICE) +
+      padLeft(money(i.total), COL_TOTAL)
+  );
+
+  textNormal(printer);
+  printer.normal();
+
+  for (let l = 1; l < nameLines.length; l++) {
+    printer.println(padRight(nameLines[l], COL_ITEM));
+  }
+
+
+
+    if (s.showSecondaryName && i.nameTa) {
+      try {
+        const buffer = await textToImage(i.nameTa);
+        if (buffer) {
+          const imgPath = saveBufferAsImage(buffer, "ta");
+          await printer.printImage(imgPath);
+        }
+      } catch (e) {
+        console.warn("⚠️ Tamil render failed:", e.message);
+      }
     }
-
   }
 
   /* ===== TOTALS (RIGHT ALIGNED) ===== */
