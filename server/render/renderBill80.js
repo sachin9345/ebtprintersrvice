@@ -178,17 +178,6 @@ async function renderBill80(printer, bill) {
       printer.println(padRight(nameLines[l], COL_ITEM));
     }
 
-    if (s.showSecondaryName && i.nameTa) {
-      try {
-        const buffer = await textToImage(i.nameTa);
-        if (buffer) {
-          const imgPath = saveBufferAsImage(buffer, "ta");
-          await printer.printImage(imgPath);
-        }
-      } catch (e) {
-        console.warn("⚠️ Tamil render failed:", e.message);
-      }
-    }
   }
 
   /* ===== TOTALS (RIGHT ALIGNED) ===== */
@@ -239,8 +228,6 @@ async function renderBill80(printer, bill) {
     printer.alignCenter();
     printer.println(bill.billFooter);
   }
-
-  printer.newLine();
   printer.cut();
 }
 

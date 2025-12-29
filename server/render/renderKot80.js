@@ -1,5 +1,13 @@
-const { textToImage } = require("../utils/imageUtils");
-const { saveBufferAsImage } = require("../utils/saveTempImage");
+const PAPER_WIDTH = 48;
+const BLOCK_WIDTH = 32;
+
+function centerBlock(text) {
+  const padding = Math.max(
+    0,
+    Math.floor((PAPER_WIDTH - BLOCK_WIDTH) / 2)
+  );
+  return " ".repeat(padding) + text;
+}
 
 async function renderKot80(printer, kot) {
   if (!kot || !Array.isArray(kot.items)) {
@@ -7,43 +15,55 @@ async function renderKot80(printer, kot) {
   }
 
   printer.clear();
-  printer.alignCenter();
 
-  printer.bold();
+
+  printer.alignCenter();
+  printer.bold(true);
+  printer.setTextDoubleHeight();
   printer.println(kot.title || "KOT");
-  printer.normal();
+  printer.setTextNormal();
+  printer.bold(false);
+
+  if (kot.counterName) {
+    printer.bold(true);
+    printer.setTextDoubleHeight();
+    printer.println(kot.counterName.toUpperCase());
+    printer.setTextNormal();
+    printer.bold(false);
+  }
 
   printer.drawLine();
-  printer.alignLeft();
 
+  printer.alignCenter();
+  printer.bold(true);
   if (kot.orderNo) printer.println(`Order: ${kot.orderNo}`);
   if (kot.table) printer.println(`Table: ${kot.table}`);
   if (kot.seat) printer.println(`Seat: ${kot.seat}`);
-  if (kot.time) printer.println(new Date(kot.time).toLocaleTimeString());
+  printer.bold(false);
 
   printer.drawLine();
 
+  printer.alignLeft();
+
   for (const i of kot.items) {
-    printer.bold();
-    printer.println(`${i.qty || 1} x ${i.nameEn || ""}`);
-    printer.normal();
+    const qty = i.qty || 1;
+    const name = i.nameEn || "";
+    const notes = i.notes?.trim();
 
-    if (i.nameTa) {
-      try {
-        const buffer = await textToImage(i.nameTa);
-        if (buffer) {
-          const imgPath = saveBufferAsImage(buffer, "ta");
-          await printer.printImage(imgPath);
-        }
-      } catch (e) {
-        console.warn("⚠️ Tamil KOT render failed:", e.message);
-      }
+    printer.bold(true);
+    printer.setTextDoubleHeight();
+    printer.println(centerBlock(`${qty} x ${name}`));
+    printer.setTextNormal();
+    printer.bold(false);
+
+    if (notes) {
+      printer.bold(true);
+      printer.println(centerBlock(`* ${notes}`));
+      printer.bold(false);
     }
-
-    printer.newLine();
   }
 
-  printer.cut();
+  printer.cut({ feed: 0 });
 }
 
 module.exports = renderKot80;
