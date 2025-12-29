@@ -9,6 +9,18 @@ function centerBlock(text) {
   return " ".repeat(padding) + text;
 }
 
+function textBig(printer) {
+  if (printer.setTextSize) {
+    printer.setTextSize(1, 2);
+  }
+}
+
+function textNormal(printer) {
+  if (printer.setTextSize) {
+    printer.setTextSize(1, 1);
+  }
+}
+
 async function renderKot80(printer, kot) {
   if (!kot || !Array.isArray(kot.items)) {
     throw new Error("Invalid KOT payload");
@@ -16,24 +28,26 @@ async function renderKot80(printer, kot) {
 
   printer.clear();
 
-
+  /* ===== TITLE ===== */
   printer.alignCenter();
   printer.bold(true);
-  printer.setTextDoubleHeight();
+  textBig(printer);
   printer.println(kot.title || "KOT");
-  printer.setTextNormal();
+  textNormal(printer);
   printer.bold(false);
 
+  /* ===== COUNTER NAME ===== */
   if (kot.counterName) {
     printer.bold(true);
-    printer.setTextDoubleHeight();
+    textBig(printer);
     printer.println(kot.counterName.toUpperCase());
-    printer.setTextNormal();
+    textNormal(printer);
     printer.bold(false);
   }
 
   printer.drawLine();
 
+  /* ===== META ===== */
   printer.alignCenter();
   printer.bold(true);
   if (kot.orderNo) printer.println(`Order: ${kot.orderNo}`);
@@ -43,6 +57,7 @@ async function renderKot80(printer, kot) {
 
   printer.drawLine();
 
+  /* ===== ITEMS (CENTERED BLOCK) ===== */
   printer.alignLeft();
 
   for (const i of kot.items) {
@@ -51,9 +66,9 @@ async function renderKot80(printer, kot) {
     const notes = i.notes?.trim();
 
     printer.bold(true);
-    printer.setTextDoubleHeight();
+    textBig(printer);
     printer.println(centerBlock(`${qty} x ${name}`));
-    printer.setTextNormal();
+    textNormal(printer);
     printer.bold(false);
 
     if (notes) {
