@@ -9,8 +9,8 @@ const { saveBufferAsImage } = require("../utils/saveTempImage");
 
 const LINE_WIDTH = 48;
 
-const COL_ITEM = 24;
-const COL_QTY = 6;
+const COL_ITEM = 22;
+const COL_QTY = 8;
 const COL_PRICE = 9;
 const COL_TOTAL = 9;
 
@@ -28,7 +28,11 @@ function ensureCacheDir() {
 function money(v) {
   return Number(v || 0).toFixed(2);
 }
-
+function formatQuantity(qty) {
+  const num = Number(qty || 0);
+  if (Number.isInteger(num)) return num.toString();
+  return num.toFixed(3).replace(/\.?0+$/, "");
+}
 function padRight(text = "", len) {
   text = String(text);
   return text.length > len
@@ -176,17 +180,32 @@ async function renderBill80(printer, bill) {
   printLine(printer);
 
 for (const i of bill.items) {
+
   const nameLines = wrapText(i.nameEn || "", COL_ITEM);
 
-  /* ---- ITEM NAME (BIG) ---- */
+  let qtyText;
+
+switch (i.unit) {
+  case "g":
+    qtyText = `${Math.round(i.displayQty || 0)}g`;
+    break;
+
+  case "kg":
+    qtyText = `${formatQuantity(i.displayQty)}kg`;
+    break;
+
+  default:
+    qtyText = formatQuantity(i.qty);
+}
+
   printer.bold();
   textBig(printer);
 
   printer.println(
     padRight(nameLines[0], COL_ITEM) +
-      padLeft(i.qty || 0, COL_QTY) +
-      padLeft(money(i.price), COL_PRICE) +
-      padLeft(money(i.total), COL_TOTAL)
+    padLeft(qtyText, COL_QTY) +
+    padLeft(money(i.price), COL_PRICE) +
+    padLeft(money(i.total), COL_TOTAL)
   );
 
   textNormal(printer);
