@@ -182,7 +182,7 @@ async function createTray() {
       { label: "🖨️ Select Printer", submenu: printerMenu },
       { type: "separator" },
       {
-        label: "🧪 Test Print",
+        label: "🧪 Test Print console",
         click: async () => {
           try {
             await axios.post(`${API_BASE}/print/test`);
